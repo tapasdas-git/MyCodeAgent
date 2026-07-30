@@ -1,4 +1,5 @@
 ## Unreleased
+- **SWAF-045**: Implement Fibonacci series utility module
 - **SWAF-046**: Implement palindrome detection utility module
 
 ## Release v1.0.1
