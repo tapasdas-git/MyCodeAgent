@@ -1,0 +1,92 @@
+name: task-review-pr-workflow
+description: "Token-optimized task workflow using AI agents for code generation/review and deterministic scripts for delivery."
+
+executor:
+  harness: codex
+  model: ${OMNIGENT_WORKFLOW_MODEL}
+  extra:
+    reasoning_effort: ${OMNIGENT_WORKFLOW_EFFORT}
+
+os_env:
+  type: caller_process
+  cwd: .
+  sandbox:
+    type: none
+
+prompt: |
+  You are the workflow supervisor. Execute these stages strictly in order:
+  1. `implement_task`: Read TODO.md, generate code/tests inside isolated task directory.
+  2. `review_change`: Adversarial code review. Stop immediately if review does NOT return APPROVED.
+  3. `update_changelog`: Update CHANGELOG.md using script execution (0 token cost).
+  4. `create_pull_request`: Stage isolated files and open PR using script execution (0 token cost).
+
+  Stop immediately if any stage fails or if review returns CHANGES_REQUESTED.
+
+tools:
+  implement_task:
+    type: agent
+    description: "Implements feature code under <task_directory>/Coding/ and tests under <task_directory>/test/."
+    executor:
+      harness: codex
+      model: ${OMNIGENT_WORKFLOW_MODEL}
+      extra:
+        reasoning_effort: ${OMNIGENT_WORKFLOW_EFFORT}
+    prompt: |
+      You are the implementation stage. Locate the active task ID in TODO.md.
+
+      STRICT ISOLATION RULES:
+      - Create a lower-snake-case task folder name (e.g., `fibonacci` or `palindrome`).
+      - Place ALL application code inside `<task_directory>/Coding/`.
+      - Place ALL test files inside `<task_directory>/test/`.
+      - Run test suite locally and ensure 100% pass rate.
+      - Output the exact task directory name (`$TASK_DIR`) and ID (`$TASK_ID`).
+
+  review_change:
+    type: agent
+    description: "Adversarial reviewer checking directory structure, tests, safety, and guidelines."
+    executor:
+      harness: codex
+      model: ${OMNIGENT_WORKFLOW_MODEL}
+      extra:
+        reasoning_effort: ${OMNIGENT_WORKFLOW_EFFORT}
+    prompt: |
+      You are the code reviewer stage. 
+      
+      STEP 1: Read `codeReviewGuideline.md` and `TODO.md` in the current repository root.
+      STEP 2: Inspect the `git diff` for the changes made by `implement_task`.
+      
+      EVALUATION:
+      - Check that all source code is strictly under `<task_directory>/Coding/` and tests are under `<task_directory>/test/`.
+      - Execute unit tests inside `<task_directory>/test/` and confirm 100% pass rate.
+      - Scan diff for hardcoded credentials: (?i)(api[_-]?key|secret|password|token)
+      - Ensure the code complies with all architectural rules in `codeReviewGuideline.md`.
+
+      Return strictly `APPROVED` if every check passes. Otherwise, return `CHANGES_REQUESTED` with actionable findings.
+
+  update_changelog:
+    type: agent
+    description: "Updates CHANGELOG.md deterministically via Python script."
+    executor:
+      harness: codex
+    os_env:
+      type: caller_process
+    prompt: |
+      You are the changelog update stage. Execute this exact shell command:
+
+      python3 scripts/workflow_helpers.py changelog --task-id "$TASK_ID"
+
+      Confirm execution succeeded, then report success.
+
+  create_pull_request:
+    type: agent
+    description: "Stages isolated task folder, commits, and creates GitHub PR via Python script."
+    executor:
+      harness: codex
+    os_env:
+      type: caller_process
+    prompt: |
+      You are the PR delivery stage. Execute this exact shell command:
+
+      python3 scripts/workflow_helpers.py pr --task-id "$TASK_ID" --task-dir "$TASK_DIR"
+
+      Report success and print the generated Pull Request URL.
