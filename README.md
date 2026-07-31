@@ -1,7 +1,5 @@
 MyCodeAgent 
 
-MyOmnigent 🤖⚡
-
 MyCodeAgent is an autonomous, agentic task-execution engine and CLI tool designed to automate software feature development, adversarial code reviews, changelog updates, and GitHub Pull Request delivery.
 
 By combining high-reasoning AI models (for code creation and automated security/guideline reviews) with deterministic Python scripting (for Git lifecycle management and changelog generation), MyOmnigent achieves 100% automated task resolution with minimal token usage and high reliability.
@@ -75,7 +73,7 @@ pip install omnigent
 omni setup
 
 
-Before setting up MyOmnigent in a fresh environment, ensure the following dependencies and tools are installed and configured:
+Before setting up MyCodeAgent in a fresh environment, ensure the following dependencies and tools are installed and configured:
 
 Python 3.8+
 Check installation:
@@ -98,7 +96,7 @@ omnigent --version
 ***
 📁 Project Directory Structure
 
-For MyOmnigent to locate configuration files and source code correctly, ensure your repository root matches this layout:
+For MyCodeAgent to locate configuration files and source code correctly, ensure your repository root matches this layout:
 
 ```text
 MyCodeAgent/                        # Project Root Directory
@@ -146,16 +144,16 @@ Granular Stage Execution & Troubleshooting
 If a task requires step-by-step debugging, individual workflow stages can be executed independently:
 
 Stage 1: Run code implementation for a specific task ID
-myomnigent run TASK-100
+mycodeagent run TASK-100
 
 Stage 2: Run verification checks & test suites
-myomnigent verify TASK-100
+mycodeagent verify TASK-100
 
 Stage 3: Run adversarial code review against guidelines
-myomnigent review TASK-100
+mycodeagent review TASK-100
 
 Stage 4: Commit changes, push branch, and create GitHub PR
-myomnigent deliver TASK-100
+mycodeagent deliver TASK-100
 
 Direct Script Execution (Human-in-the-Loop Fallback)
 
