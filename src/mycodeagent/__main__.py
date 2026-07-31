@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 SETTINGS_PATH = ROOT / "workflow_runtime.toml"
-WORKFLOW_PATH = ROOT / "omnigent_bugfix_workflow.yaml"
+WORKFLOW_PATH = ROOT / "coding_agent.yaml"
 
 # Regex matching: ## <ID> | <state> | <priority> | <title>
 TASK_HEADING = re.compile(
