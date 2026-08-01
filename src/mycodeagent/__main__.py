@@ -21,7 +21,7 @@ TASK_HEADING = re.compile(
     r"^##\s+([A-Z0-9]+-\d+)\s*\|\s*(\w+)\s*\|\s*(P[0-3])\s*\|\s*(.+?)\s*$",
     re.MULTILINE
 )
-
+# Reads TODO.md, locates the header matching task_id, and extracts task specs.
 def parse_todo_file(todo_path: Path) -> dict[str, dict[str, str]]:
     """Parse TODO.md and return structured task dictionary."""
     if not todo_path.exists():
@@ -45,7 +45,7 @@ def get_first_ready_task(tasks: dict[str, dict[str, str]]) -> str | None:
         if info["state"] == "ready":
             return task_id
     return None
-
+# Invokes the Omnigent engine runner for a specific stage in the workflow YAML
 def execute_omnigent_stage(prompt: str, target_stage: str | None = None) -> int:
     """Loads runtime settings and executes the workflow or targeted sub-tool stage."""
     with SETTINGS_PATH.open("rb") as settings_file:
@@ -69,7 +69,15 @@ def execute_omnigent_stage(prompt: str, target_stage: str | None = None) -> int:
     with tempfile.TemporaryDirectory(prefix="omnigent-workflow-") as temp_dir:
         rendered_path = Path(temp_dir) / WORKFLOW_PATH.name
         rendered_path.write_text(rendered_workflow, encoding="utf-8")
-        
+
+        if target_stage:
+            prompt = (
+                f"STAGE ONLY: {target_stage}\n"
+                "Invoke only the named workflow stage. Do not invoke, delegate to, "
+                "or perform any other stage.\n\n"
+                f"{prompt}"
+            )
+
         command = [
             "omnigent",
             "run",
@@ -81,11 +89,6 @@ def execute_omnigent_stage(prompt: str, target_stage: str | None = None) -> int:
             "-p",
             prompt,
         ]
-        
-        # If targeting a specific sub-stage for troubleshooting/testing
-        if target_stage:
-            command.extend(["--tool", target_stage])
-
         try:
             completed = subprocess.run(
                 command,
@@ -98,9 +101,9 @@ def execute_omnigent_stage(prompt: str, target_stage: str | None = None) -> int:
         except subprocess.TimeoutExpired:
             print(f"Workflow exceeded timeout limit.", file=sys.stderr)
             return 124
-
+# """Parses CLI flags (run, verify, review, deliver, submit) and routes execution."""
 def main() -> int:
-    parser = argparse.ArgumentParser(prog="myomnigent", description="MyOmnigent Workflow CLI")
+    parser = argparse.ArgumentParser(prog="mycodeagent", description="MyCodeAgent Workflow CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # 1. 'submit' command

@@ -99,7 +99,7 @@
 - Approved by: Tech Lead
 - Approval reference: 2026-07-30 Arch Sync
 
-## TASK-047 | ready | P3 | Create a utility module in `prime_checker` to verify prime numbers and return prime factors.
+## TASK-047 | completed | P3 | Create a utility module in `prime_checker` to verify prime numbers and return prime factors.
 - Outcome: Pure Python module and unit tests for palindrome detection, handling edge cases, case-insensitivity, and special characters.
 - Depends on: None
 - Repository: https://github.com/tapasdas-git/MyOmnigent.git
@@ -113,3 +113,44 @@ Acceptance:
   - Unit test suite passes with 100% test coverage.
 - Approved by: Tech Lead
 - Approval reference: 2026-07-30 Arch Sync
+
+## TASK-101 | ready | P1 | [FEATURE] Build Agentic Flight Booking Engine in `workspace/flight_booking_agent/`
+- Outcome: Implement a multi-agent flight search and booking engine using Python and Pydantic as a new core feature. Process natural language requests, query flight options, evaluate preferences, and handle booking state validation.
+- Depends on: None
+- Repository: https://github.com/tapasdas-git/MyCodeAgent.git
+- Harness: primary-name
+- Night-ready: yes
+- Architecture & Tech Stack:
+  - Framework: Python 3.11+, Pydantic (v2) for structured schema validations
+  - Target Architecture Pattern: ReAct (Routing & Tool-Calling Agent Loop) Pattern. Implement a bounded loop: model decision -> Pydantic-validated tool action -> tool observation -> next decision or final response.
+  - ReAct Controls: Define structured Pydantic schemas for model actions and tool observations. Stop safely on a final response, invalid action, tool failure, or configured maximum iteration count.
+  - Groq Tool-Calling Protocol: Use Groq native chat-completions tool calling with declared function schemas and `tool_choice="auto"`. Keep per-request message history; append the assistant tool-call message and each matching `role: "tool"` observation with its `tool_call_id`. Support multiple tool calls in one model response.
+  - Tool Safety: Use an explicit allowlist of registered tools. Reject unknown tool names, malformed JSON arguments, and schema-invalid arguments without executing a tool.
+    1. Search Agent: Queries flight database/mock API.
+    2. Preference/Policy Agent: Filters options based on budget, seat preference, and bag policies.
+    3. Booking Agent: Handles reservation execution and confirmation generation.
+- API Key & Secrets Management:
+  - LLM Provider: Use Groq as the runtime LLM provider. Access it through an injectable client/adapter and load `GROQ_API_KEY` dynamically from environment variables.
+  - Security Requirement: Fetch keys dynamically via `os.getenv()`. Under no circumstances should API keys be hardcoded in files.
+  - Mocking in Tests: Unit tests must use an injected fake Groq/LLM client plus mock objects or fixtures (`pytest.monkeypatch` / `unittest.mock`) so the entire test suite passes offline without active network/API calls.
+  - Deterministic Safety: Validate price, inventory, policy, and reservation state in deterministic code before any booking side effect. Protect against duplicate bookings with an idempotency key or equivalent request identity.
+  - Booking Authorization: Execute a reservation only after explicit booking authorization in the request or a confirmed booking state. Searching, filtering, or selecting an option must not reserve inventory.
+- Workspace Boundary:
+  - Source: `workspace/flight_booking_agent/Coding/`
+  - Tests: `workspace/flight_booking_agent/test/`
+  - Requirements: `workspace/flight_booking_agent/Coding/requirements.txt`
+  - Rule: All files and modifications must stay strictly inside `workspace/flight_booking_agent/`. Do not modify root or external repository files.
+- Acceptance:
+  - Isolated workspace created at `workspace/flight_booking_agent/`.
+  - Source files created under `workspace/flight_booking_agent/Coding/`:
+    - `requirements.txt`: Local dependencies (`pydantic>=2.0.0`, `groq`, `pytest`).
+    - `schemas.py`: Pydantic models for `FlightQuery`, `FlightOption`, and `BookingConfirmation`.
+    - `tools.py`: Mock Flight Search API and Mock Reservation Gateway.
+    - `agents.py`: Groq client/adapter boundary, Search Agent, Preference/Policy Agent, Booking Agent, and ReAct Supervisor Orchestrator.
+  - Test files created under `workspace/flight_booking_agent/test/`:
+    - `test_flight_search.py`: Verifies intent parsing, fake-LLM tool routing, ReAct action/observation handling, and flight filtering.
+    - `test_booking_flow.py`: Verifies end-to-end multi-agent orchestration, booking idempotency, failure/budget/inventory edge cases, malformed model actions, and loop-limit handling.
+    - `test_react_protocol.py`: Verifies native tool-schema registration, assistant/tool message ordering, matching `tool_call_id` values, multiple tool calls, unknown-tool rejection, malformed arguments, and loop-limit termination.
+  - Test suite passes with 100% pass rate locally.
+- Approved by: Tech Lead
+- Approval reference: 2026-08-01 Arch Sync

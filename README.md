@@ -2,7 +2,7 @@ MyCodeAgent
 
 MyCodeAgent is an autonomous, agentic task-execution engine and CLI tool designed to automate software feature development, adversarial code reviews, changelog updates, and GitHub Pull Request delivery.
 
-By combining high-reasoning AI models (for code creation and automated security/guideline reviews) with deterministic Python scripting (for Git lifecycle management and changelog generation), MyOmnigent achieves 100% automated task resolution with minimal token usage and high reliability.
+By combining high-reasoning AI models (for code creation and automated security/guideline reviews) with deterministic Python scripting (for Git lifecycle management and changelog generation), MyCodeAgent delivers a controlled task-resolution workflow with minimal token usage and high reliability.
 
 ***
 💡 Key Features & Architecture
@@ -70,7 +70,7 @@ Configuration Formats: YAML (.yaml), TOML (.toml), Markdown (.md)
 
 pip install omnigent
 
-omni setup
+omnigent setup
 
 
 Before setting up MyCodeAgent in a fresh environment, ensure the following dependencies and tools are installed and configured:
@@ -96,7 +96,7 @@ omnigent --version
 ***
 📁 Project Directory Structure
 
-For MyCodeAgent to locate configuration files and source code correctly, ensure your repository root matches this layout:
+For MyCodeAgent to locate configuration files and source code correctly, ensure your repository root matches this layout. The CLI loads `coding_agent.yaml` as its active Codex/Omnigent workflow definition; `omnigent_bugfix_workflow.yaml` is not used by the current CLI.
 
 ```text
 MyCodeAgent/                        # Project Root Directory
@@ -105,15 +105,15 @@ MyCodeAgent/                        # Project Root Directory
 ├── codeReviewGuideline.md         # Enterprise review & security standards
 ├── pyproject.toml                 # Package configuration & entry points
 ├── workflow_runtime.toml          # Model, harness, and timeout runtime settings
-├── omnigent_bugfix_workflow.yaml  # Workflow stage definitions for Omnigent
+├── coding_agent.yaml              # Active Codex/Omnigent workflow stages
 ├── git_approval.toml             # Approved Git identity & remote repository rules
 ├── README.md                      # Documentation
 ├── scripts/
 │   └── workflow_helpers.py        # Deterministic Python scripts (Changelog & PR)
 └── src/
     └── mycodeagent/
-        ├── init.py            # Package initialization
-        └── main.py            # CLI entry point logic
+        ├── __init__.py        # Package initialization
+        └── __main__.py        # CLI entry point logic
 
 
 🚀 Quickstart & Installation
@@ -121,18 +121,22 @@ Clone the Repository
 
 git clone https://github.com/tapasdas-git/MyCodeAgent.git
 
-cd MyCodegent
+cd MyCodeAgent
 
 Create and Activate Virtual Environment
 
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-Install MyCodeAgent in Editable Mode
+# Install MyCodeAgent in Editable Mode
 
 pip install -e .
 
-📖 Usage Guide1. Execute Automated Workflow (submit)To automatically pick up the first task marked ready in TODO.md and execute the full pipeline (Implement $\rightarrow$ Review $\rightarrow$ Changelog $\rightarrow$ GitHub PR):
+📖 Usage Guide
+
+### Execute the automated workflow
+
+To pick up the first task marked ready in TODO.md and execute the full pipeline (Implement $\rightarrow$ Review $\rightarrow$ Changelog $\rightarrow$ GitHub PR):
 
 Process task from default TODO.md
 mycodeagent submit
@@ -166,6 +170,20 @@ Create feature branch, commit, push, and open Pull Request on GitHub
 python3 scripts/workflow_helpers.py pr --task-id "TASK-100" --task-dir "flight_booking"
 
 📝 Defining Tasks in TODO.md
+
+### Coding-agent implementation contract
+
+`mycodeagent` invokes Codex through `coding_agent.yaml`. The task description is the source of truth; the coding agent must translate its architecture and acceptance criteria into implementation, tests, and a reviewable result. For every task, the implementation stage must:
+
+- inspect the referenced repository files before choosing dependencies or APIs;
+- keep changes inside the task's stated workspace boundary;
+- map every acceptance criterion to at least one test;
+- inject external integrations behind interfaces and use fakes/mocks in tests; and
+- report the task ID, changed files, acceptance-test evidence, and any unsupported requirement rather than silently substituting an unrelated design.
+
+For an AI-agent task, naming an LLM provider is an implementation requirement. For example, a Groq ReAct feature must include a dynamically configured Groq adapter, validated tool inputs and outputs, and an explicit thought/action/observation loop with a bounded iteration count. A key lookup alone is not an LLM integration. Business-critical checks—such as price, inventory, policy, and booking confirmation—must remain deterministic code and must not rely on model output.
+
+The Omnigent workflow is the outer development pipeline (implement, review, changelog, delivery). It is distinct from any multi-agent runtime that the task asks the coding agent to build.
 
 TASK-100 | ready | high | Build Flight Booking Agent in flight_booking
 
