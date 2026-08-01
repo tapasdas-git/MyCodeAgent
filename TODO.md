@@ -99,7 +99,7 @@
 - Approved by: Tech Lead
 - Approval reference: 2026-07-30 Arch Sync
 
-## TASK-047 | ready | P3 | Create a utility module in `prime_checker` to verify prime numbers and return prime factors.
+## TASK-047 | completed | P3 | Create a utility module in `prime_checker` to verify prime numbers and return prime factors.
 - Outcome: Pure Python module and unit tests for palindrome detection, handling edge cases, case-insensitivity, and special characters.
 - Depends on: None
 - Repository: https://github.com/tapasdas-git/MyOmnigent.git
@@ -113,3 +113,38 @@ Acceptance:
   - Unit test suite passes with 100% test coverage.
 - Approved by: Tech Lead
 - Approval reference: 2026-07-30 Arch Sync
+
+## TASK-100 | ready | P1 | [FEATURE] Build Agentic Flight Booking Engine in `workspace/flight_booking_agent/`
+- Outcome: Implement a multi-agent flight search and booking engine using Python and Pydantic as a new core feature. Process natural language requests, query flight options, evaluate preferences, and handle booking state validation.
+- Depends on: None
+- Repository: https://github.com/tapasdas-git/MyOmnigent.git
+- Harness: primary-name
+- Night-ready: yes
+- Architecture & Tech Stack:
+  - Framework: Python 3.11+, Pydantic (v2) for structured schema validations
+  - Target Architecture Pattern: ReAct (Routing & Tool-Calling Agent Loop) Pattern
+    1. Search Agent: Queries flight database/mock API.
+    2. Preference/Policy Agent: Filters options based on budget, seat preference, and bag policies.
+    3. Booking Agent: Handles reservation execution and confirmation generation.
+- API Key & Secrets Management:
+  - Environment Variable: Expects `GROQ_API_KEY` (or `OPENAI_API_KEY`) loaded from environment variables.
+  - Security Requirement: Fetch keys dynamically via `os.getenv()`. Under no circumstances should API keys be hardcoded in files.
+  - Mocking in Tests: Unit tests must use mock objects or fixtures (`pytest.monkeypatch` / `unittest.mock`) so the entire test suite passes offline without active network/API calls.
+- Workspace Boundary:
+  - Source: `workspace/flight_booking_agent/Coding/`
+  - Tests: `workspace/flight_booking_agent/test/`
+  - Requirements: `workspace/flight_booking_agent/Coding/requirements.txt`
+  - Rule: All files and modifications must stay strictly inside `workspace/flight_booking_agent/`. Do not modify root or external repository files.
+- Acceptance:
+  - Isolated workspace created at `workspace/flight_booking_agent/`.
+  - Source files created under `workspace/flight_booking_agent/Coding/`:
+    - `requirements.txt`: Local dependencies (`pydantic>=2.0.0`, `pytest`).
+    - `schemas.py`: Pydantic models for `FlightQuery`, `FlightOption`, and `BookingConfirmation`.
+    - `tools.py`: Mock Flight Search API and Mock Reservation Gateway.
+    - `agents.py`: Search Agent, Preference Evaluator, and Supervisor Orchestrator.
+  - Test files created under `workspace/flight_booking_agent/test/`:
+    - `test_flight_search.py`: Verifies intent parsing and flight filtering.
+    - `test_booking_flow.py`: Verifies end-to-end multi-agent orchestration and failure/budget edge cases.
+  - Test suite passes with 100% pass rate locally.
+- Approved by: Tech Lead
+- Approval reference: 2026-08-01 Arch Sync
