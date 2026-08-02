@@ -1,4 +1,5 @@
 ## Unreleased
+- **TASK-103**: ## TASK-103 | reviewed | P2 | [FEATURE] Build Currency Exchange Engine in `workspace/currency_exchange/`
 - **SWAF-045**: Implement Fibonacci series utility module
 - **SWAF-046**: Implement palindrome detection utility module
 - **TASK-047**: Add `prime_checker` utility module with `is_prime`, `get_prime_factors`, and tests
