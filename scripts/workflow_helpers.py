@@ -4,7 +4,27 @@ import argparse
 import re
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent.parent
+APPROVAL_PATH = ROOT / "git_approval.toml"
+TASK_ID_PATTERN = re.compile(r"^[A-Z0-9]+-\d+$")
+TASK_HEADING_PATTERN = re.compile(
+    r"^##\s+(?P<task_id>[A-Z0-9]+-\d+)\s*\|\s*\w+\s*\|\s*P[0-3]\s*\|\s*(?P<title>.+?)\s*$",
+    re.MULTILINE,
+)
+
+
+def configure_root(repository_root: str | None, approval_file: str | None) -> None:
+    """Target a linked task worktree while using this current helper version."""
+    global ROOT, APPROVAL_PATH
+    if repository_root is not None:
+        ROOT = Path(repository_root).expanduser().resolve()
+        APPROVAL_PATH = ROOT / "git_approval.toml"
+    if approval_file is not None:
+        APPROVAL_PATH = Path(approval_file).expanduser().resolve()
 
 
 def get_default_branch() -> str:
@@ -12,12 +32,67 @@ def get_default_branch() -> str:
     for branch in ["main", "master"]:
         res = subprocess.run(
             ["git", "rev-parse", "--verify", f"refs/remotes/origin/{branch}"],
+            cwd=ROOT,
             capture_output=True,
             text=True,
         )
         if res.returncode == 0:
             return branch
     return "main"
+
+
+def run_cmd(cmd: list[str], *, allow_fail: bool = False) -> str:
+    """Run a deterministic command from the repository root."""
+    print(f"⚙️ Running command: {' '.join(cmd)}", flush=True)
+    result = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, check=False)
+    if result.returncode != 0 and not allow_fail:
+        print(f"❌ Error running {' '.join(cmd)}:\n{result.stderr}", file=sys.stderr, flush=True)
+        raise RuntimeError(f"command failed: {' '.join(cmd)}")
+    return result.stdout.strip()
+
+
+def load_git_approval() -> dict[str, str]:
+    if not APPROVAL_PATH.exists():
+        raise RuntimeError(f"Missing approval configuration: {APPROVAL_PATH}")
+    with APPROVAL_PATH.open("rb") as approval_file:
+        approval = tomllib.load(approval_file)
+    required = ("approved_git_name", "approved_git_email", "approved_github_login", "approved_remote")
+    missing = [key for key in required if not isinstance(approval.get(key), str) or not approval[key]]
+    if missing:
+        raise RuntimeError(f"Missing approval configuration values: {', '.join(missing)}")
+    return approval
+
+
+def validate_task_input(task_id: str, task_dir: str) -> Path:
+    if not TASK_ID_PATTERN.fullmatch(task_id):
+        raise RuntimeError(f"Invalid task ID: {task_id}")
+    candidate = Path(task_dir)
+    if candidate.is_absolute():
+        raise RuntimeError("Task directory must be a repository-relative path")
+    task_path = (ROOT / candidate).resolve()
+    try:
+        task_path.relative_to(ROOT)
+    except ValueError as exc:
+        raise RuntimeError("Task directory escapes the repository") from exc
+    if not (task_path / "Coding").is_dir() or not (task_path / "test").is_dir():
+        raise RuntimeError("Task directory must contain Coding/ and test/ directories")
+    return task_path
+
+
+def verify_delivery_preflight(task_id: str, task_dir: str, review_status: str) -> tuple[dict[str, str], Path]:
+    if review_status != "APPROVED":
+        raise RuntimeError("Pull-request delivery requires review status APPROVED")
+
+    approval = load_git_approval()
+    repository_root = Path(run_cmd(["git", "rev-parse", "--show-toplevel"])).resolve()
+    if repository_root != ROOT:
+        raise RuntimeError(f"Expected repository root {ROOT}, got {repository_root}")
+    if run_cmd(["git", "remote", "get-url", "origin"]) != approval["approved_remote"]:
+        raise RuntimeError("Origin remote does not match approved_remote")
+    if run_cmd(["gh", "api", "user", "--jq", ".login"]) != approval["approved_github_login"]:
+        raise RuntimeError("Authenticated GitHub account does not match approved_github_login")
+
+    return approval, validate_task_input(task_id, task_dir)
 
 
 def update_changelog(task_id: str, todo_path: str = "TODO.md", changelog_path: str = "CHANGELOG.md") -> None:
@@ -54,25 +129,47 @@ def update_changelog(task_id: str, todo_path: str = "TODO.md", changelog_path: s
     print(f"✅ Updated {changelog_path} with: {new_entry}", flush=True)
 
 
-def create_pull_request(task_id: str, task_dir: str) -> None:
+def task_title(task_id: str, todo_path: str = "TODO.md") -> str:
+    """Get a human-readable PR title from the selected task heading."""
+    todo_file = ROOT / todo_path
+    if not todo_file.exists():
+        return f"Implement {task_id}"
+    for match in TASK_HEADING_PATTERN.finditer(todo_file.read_text(encoding="utf-8")):
+        if match.group("task_id") == task_id:
+            title = re.sub(r"^\[[^\]]+\]\s*", "", match.group("title").strip())
+            return title.replace("`", "")[:180]
+    return f"Implement {task_id}"
+
+
+def create_pull_request(task_id: str, task_dir: str, review_status: str) -> None:
     """Stages specific task directory, commits, pushes branch, and creates PR."""
     print(f"🚀 Initializing PR process for Task ID: {task_id} in directory: {task_dir}...", flush=True)
+    approval, task_path = verify_delivery_preflight(task_id, task_dir, review_status)
     branch_name = f"feature/{task_id.lower()}"
-
-    def run_cmd(cmd: list[str], allow_fail: bool = False) -> str:
-        print(f"⚙️ Running command: {' '.join(cmd)}", flush=True)
-        res = subprocess.run(cmd, capture_output=True, text=True)
-        if res.returncode != 0 and not allow_fail:
-            print(f"❌ Error running {' '.join(cmd)}:\n{res.stderr}", file=sys.stderr, flush=True)
-            sys.exit(1)
-        return res.stdout.strip()
 
     # Safely resolve target base branch ('main' or 'master')
     base_branch = get_default_branch()
     print(f"🎯 Target base branch resolved to: {base_branch}", flush=True)
 
-    run_cmd(["git", "checkout", "-B", branch_name])
-    run_cmd(["git", "add", f"{task_dir}/Coding/", f"{task_dir}/test/", "CHANGELOG.md"])
+    run_cmd(["git", "config", "user.name", approval["approved_git_name"]])
+    run_cmd(["git", "config", "user.email", approval["approved_git_email"]])
+    current_branch = run_cmd(["git", "branch", "--show-current"])
+    if current_branch != branch_name:
+        existing_branch = subprocess.run(
+            ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{branch_name}"],
+            cwd=ROOT,
+            check=False,
+        ).returncode == 0
+        if existing_branch:
+            raise RuntimeError(
+                f"Refusing to switch from {current_branch} to existing {branch_name}; "
+                "use an isolated worktree or switch branches manually after preserving the task workspace"
+            )
+        run_cmd(["git", "switch", "-c", branch_name])
+        validate_task_input(task_id, task_dir)
+
+    task_relative = str(task_path.relative_to(ROOT))
+    run_cmd(["git", "add", f"{task_relative}/Coding/", f"{task_relative}/test/", "CHANGELOG.md"])
 
     # Check if there are staged changes ready to commit
     res = subprocess.run(["git", "diff", "--cached", "--quiet"])
@@ -85,11 +182,12 @@ def create_pull_request(task_id: str, task_dir: str) -> None:
     run_cmd(["git", "push", "-u", "origin", branch_name])
 
     print("🐙 Creating Pull Request on GitHub...", flush=True)
+    title = f"feat({task_id}): {task_title(task_id)}"
     pr_url = run_cmd([
         "gh", "pr", "create",
         "--base", base_branch,
         "--head", branch_name,
-        "--title", f"feat({task_id}): automated implementation",
+        "--title", title,
         "--body", f"Automated PR generated for task `{task_id}` inside isolated directory `{task_dir}/`."
     ])
 
@@ -98,11 +196,15 @@ def create_pull_request(task_id: str, task_dir: str) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Workflow Helper Utility")
+    parser.add_argument("--repo-root", help="Repository or linked worktree to operate in")
+    parser.add_argument("--approval-file", help="Approved Git policy file to use for delivery preflight")
     parser.add_argument("action", choices=["changelog", "pr"], help="Action to execute")
     parser.add_argument("--task-id", required=True, help="Task identifier (e.g., SWAF-045)")
-    parser.add_argument("--task-dir", default="", help="Task directory path (e.g., fibonacci)")
+    parser.add_argument("--task-dir", default="", help="Task directory path (e.g., workspace/fibonacci)")
+    parser.add_argument("--review-status", default="", help="Required APPROVED review status for PR delivery")
 
     args = parser.parse_args()
+    configure_root(args.repo_root, args.approval_file)
 
     if args.action == "changelog":
         update_changelog(args.task_id)
@@ -110,4 +212,8 @@ if __name__ == "__main__":
         if not args.task_dir:
             print("❌ Error: --task-dir is required when action is 'pr'.", file=sys.stderr, flush=True)
             sys.exit(1)
-        create_pull_request(args.task_id, args.task_dir)
+        try:
+            create_pull_request(args.task_id, args.task_dir, args.review_status)
+        except RuntimeError as exc:
+            print(f"❌ Delivery preflight failed: {exc}", file=sys.stderr, flush=True)
+            sys.exit(1)
