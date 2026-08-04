@@ -1,4 +1,5 @@
 ## Unreleased
+- **TASK-107**: [SMOKE] Build Slug Utility in `workspace/slug_utility/`
 - **TASK-104**: [FEATURE] Build Prompt Sanitizer Engine in `workspace/prompt_optimizer/`
 - **SWAF-045**: Implement Fibonacci series utility module
 - **SWAF-046**: Implement palindrome detection utility module
